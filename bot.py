@@ -54,10 +54,16 @@ funny_wrong_responses = [
 async def send_welcome(message: types.Message):
     await message.answer(f"Привет, {get_name()}! 💕 Выбери режим:", reply_markup=keyboard)
 
+# 🔹 Исправленная кнопка "Закончить"
 @dp.callback_query(F.data == "exit")
 async def exit_quiz(callback_query: types.CallbackQuery):
     """Выход из текущего режима в главное меню"""
-    await callback_query.message.edit_text("🏠 Ты вернулась в главное меню.", reply_markup=keyboard)
+    
+    # Создаём новое сообщение с ReplyKeyboardMarkup
+    await callback_query.message.answer("🏠 Ты вернулась в главное меню.", reply_markup=keyboard)
+    
+    # Удаляем старое сообщение с inline-кнопками
+    await callback_query.message.delete()
 
 # 🔹 Викторина
 @dp.message(F.text == "Викторина")
