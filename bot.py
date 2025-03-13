@@ -54,15 +54,48 @@ funny_wrong_responses = [
 async def send_welcome(message: types.Message):
     await message.answer(f"Привет, {get_name()}! 💕 Выбери режим:", reply_markup=keyboard)
 
+# 🔹 Исправленный режим "Карточки"
+@dp.message(F.text == "Карточки")
+async def send_flashcard(message: types.Message):
+    """Отправляет случайную карточку с вопросом"""
+    index = random.randint(0, len(dishes) - 1)
+    dish = dishes[index]
+
+    buttons = [
+        [InlineKeyboardButton(text="Показать ответ", callback_data=f"show_{index}")],
+        [InlineKeyboardButton(text="Следующая карточка", callback_data="next_card")],
+        [InlineKeyboardButton(text="Закончить", callback_data="exit")]
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await message.answer(f"❓ {get_name()}, какой состав у блюда *{dish['name']}*?", parse_mode="Markdown", reply_markup=keyboard)
+
+@dp.callback_query(F.data.startswith("show_"))
+async def show_answer(callback_query: types.CallbackQuery):
+    """Показывает ответ (ингредиенты блюда)"""
+    index = int(callback_query.data.replace("show_", ""))
+    dish = dishes[index]
+
+    ingredients = ", ".join(dish["ingredients"])
+    await callback_query.message.edit_text(f"🍽 *{dish['name']}*\nСостав: {ingredients}", parse_mode="Markdown")
+
+    buttons = [
+        [InlineKeyboardButton(text="Следующая карточка", callback_data="next_card")],
+        [InlineKeyboardButton(text="Закончить", callback_data="exit")]
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await callback_query.message.edit_reply_markup(reply_markup=keyboard)
+
+@dp.callback_query(F.data == "next_card")
+async def next_flashcard(callback_query: types.CallbackQuery):
+    """Показывает новую карточку"""
+    await send_flashcard(callback_query.message)
+
 # 🔹 Исправленная кнопка "Закончить"
 @dp.callback_query(F.data == "exit")
 async def exit_quiz(callback_query: types.CallbackQuery):
     """Выход из текущего режима в главное меню"""
-    
-    # Создаём новое сообщение с ReplyKeyboardMarkup
     await callback_query.message.answer("🏠 Ты вернулась в главное меню.", reply_markup=keyboard)
-    
-    # Удаляем старое сообщение с inline-кнопками
     await callback_query.message.delete()
 
 # 🔹 Викторина
@@ -113,12 +146,11 @@ async def check_quiz_answer(callback_query: types.CallbackQuery):
 async def next_quiz(callback_query: types.CallbackQuery):
     await send_quiz(callback_query.message)
 
-# 🔹 Режим "Тесты" с кнопкой "Следующий вопрос"
+# 🔹 Тесты (показывает полный правильный ответ при ошибке)
 user_tests = {}
 
 @dp.message(F.text == "Тесты")
 async def send_test(message: types.Message):
-    """Отправляет вопрос теста"""
     index = random.randint(0, len(dishes) - 1)
     dish = dishes[index]
 
@@ -127,30 +159,14 @@ async def send_test(message: types.Message):
 
 @dp.message(F.text)
 async def check_test_answer(message: types.Message):
-    """Проверяет введённый пользователем состав"""
     if message.chat.id not in user_tests:
         return
 
     dish = user_tests.pop(message.chat.id)
-    correct_ingredients = set(map(str.lower, dish["ingredients"]))
-    user_ingredients = set(map(str.lower, map(str.strip, message.text.split(","))))
 
-    if user_ingredients == correct_ingredients:
-        response = random.choice(funny_correct_responses).format(name=get_name(), correct=dish["name"])
-    else:
-        response = random.choice(funny_wrong_responses).format(name=get_name(), correct=dish["name"])
+    response = f"⚠️ {get_name()}, не всё правильно! Полный состав блюда *{dish['name']}*:\n{', '.join(dish['ingredients'])}."
 
-    buttons = [
-        [InlineKeyboardButton(text="Следующий вопрос", callback_data="next_test")],
-        [InlineKeyboardButton(text="Закончить", callback_data="exit")]
-    ]
-    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
-    await message.answer(response, parse_mode="Markdown", reply_markup=keyboard)
-
-@dp.callback_query(F.data == "next_test")
-async def next_test(callback_query: types.CallbackQuery):
-    await send_test(callback_query.message)
+    await message.answer(response, parse_mode="Markdown")
 
 # 🔹 Запуск бота
 async def main():
